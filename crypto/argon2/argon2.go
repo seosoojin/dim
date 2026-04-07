@@ -1,6 +1,10 @@
 package argon2
 
 import (
+	"bytes"
+	"encoding/base64"
+	"fmt"
+
 	"github.com/seosoojin/dim/crypto"
 	"github.com/seosoojin/dim/crypto/salt"
 
@@ -23,17 +27,64 @@ func NewArgon2Crypto(opts ...argon2Options) *argon2Crypto {
 	}
 }
 
-func (a *argon2Crypto) HashString(src string) ([]byte, salt.Salt, error) {
+func (a *argon2Crypto) HashString(src string) ([]byte, error) {
 	salt, err := salt.Generate(a.opts.SaltLength)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	hashed := argon2.IDKey([]byte(src), salt, a.opts.Time, a.opts.Memory, a.opts.Threads, a.opts.KeyLength)
-	return hashed, salt, nil
+	return a.hashString(src, salt), nil
 }
 
-func (a *argon2Crypto) VerifyHash(password string, salt salt.Salt, expectedHash []byte) bool {
-	newHash := argon2.IDKey([]byte(password), salt, a.opts.Time, a.opts.Memory, a.opts.Threads, a.opts.KeyLength)
-	return crypto.Compare(newHash, expectedHash)
+func (a *argon2Crypto) hashString(src string, salt salt.Salt) []byte {
+	hash := argon2.IDKey([]byte(src), salt, a.opts.Time, a.opts.Memory, a.opts.Threads, a.opts.KeyLength)
+
+	encodedHash := fmt.Sprintf(
+		"$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version,
+		a.opts.Memory,
+		a.opts.Time,
+		a.opts.Threads,
+		base64.RawStdEncoding.EncodeToString(salt),
+		base64.RawStdEncoding.EncodeToString(hash),
+	)
+
+	return []byte(encodedHash)
+}
+
+func (a *argon2Crypto) VerifyHash(password string, expectedHash []byte) (bool, error) {
+	config, salt, expectedHashBytes, err := a.ExtractComponents(expectedHash)
+	if err != nil {
+		return false, err
+	}
+
+	newHash := argon2.IDKey([]byte(password), salt, config.Time, config.Memory, config.Threads, config.KeyLength)
+	return crypto.Compare(newHash, expectedHashBytes), nil
+}
+
+func (a *argon2Crypto) ExtractComponents(encodedHash []byte) (Argon2Options, salt.Salt, []byte, error) {
+	if !bytes.HasPrefix(encodedHash, []byte("$argon2id$")) {
+		return Argon2Options{}, nil, nil, ErrInvalidHashFormat
+	}
+
+	components := bytes.Split(encodedHash, []byte("$"))
+	if len(components) != 6 {
+		return Argon2Options{}, nil, nil, ErrInvalidHashFormat
+	}
+
+	var config Argon2Options
+	fmt.Sscanf(string(components[3]), "m=%d,t=%d,p=%d",
+		&config.Memory, &config.Time, &config.Threads)
+
+	saltBytes, err := base64.RawStdEncoding.DecodeString(string(components[4]))
+	if err != nil {
+		return Argon2Options{}, nil, nil, err
+	}
+
+	hashBytes, err := base64.RawStdEncoding.DecodeString(string(components[5]))
+	if err != nil {
+		return Argon2Options{}, nil, nil, err
+	}
+
+	return config, saltBytes, hashBytes, nil
 }
