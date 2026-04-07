@@ -15,6 +15,8 @@ type argon2Crypto struct {
 	opts *Argon2Options
 }
 
+var _ crypto.Crypto = (*argon2Crypto)(nil)
+
 func NewArgon2Crypto(opts ...argon2Options) *argon2Crypto {
 	config := NewArgon2Options()
 

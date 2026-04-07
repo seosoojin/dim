@@ -2,13 +2,11 @@ package crypto
 
 import (
 	"crypto/subtle"
-
-	"github.com/seosoojin/dim/crypto/salt"
 )
 
 type Crypto interface {
-	HashString(src string) ([]byte, salt.Salt, error)
-	VerifyHash(password string, salt salt.Salt, expectedHash []byte) bool
+	HashString(src string) ([]byte, error)
+	VerifyHash(password string, expectedHash []byte) (bool, error)
 }
 
 func Compare(a, b []byte) bool {
