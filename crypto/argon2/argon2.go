@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log"
 
 	"github.com/seosoojin/dim/crypto"
 	"github.com/seosoojin/dim/crypto/salt"
@@ -60,6 +61,11 @@ func (a *argon2Crypto) VerifyHash(password string, expectedHash []byte) (bool, e
 		return false, err
 	}
 
+	log.Printf("Extracted config: %+v", config)
+	log.Printf("Extracted salt: %x\n", salt)
+	log.Printf("Extracted hash: %x\n", expectedHashBytes)
+
+	log.Printf("password %s", password)
 	newHash := argon2.IDKey([]byte(password), salt, config.Time, config.Memory, config.Threads, config.KeyLength)
 	return crypto.Compare(newHash, expectedHashBytes), nil
 }
@@ -91,6 +97,9 @@ func (a *argon2Crypto) ExtractComponents(encodedHash []byte) (Argon2Options, sal
 	if err != nil {
 		return Argon2Options{}, nil, nil, err
 	}
+
+	config.SaltLength = uint32(len(saltBytes))
+	config.KeyLength = uint32(len(hashBytes))
 
 	return config, saltBytes, hashBytes, nil
 }
