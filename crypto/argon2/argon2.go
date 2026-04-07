@@ -78,6 +78,10 @@ func (a *argon2Crypto) ExtractComponents(encodedHash []byte) (Argon2Options, sal
 	fmt.Sscanf(string(components[3]), "m=%d,t=%d,p=%d",
 		&config.Memory, &config.Time, &config.Threads)
 
+	if config.Memory == 0 || config.Time == 0 || config.Threads == 0 {
+		return Argon2Options{}, nil, nil, ErrInvalidHashFormat
+	}
+
 	saltBytes, err := base64.RawStdEncoding.DecodeString(string(components[4]))
 	if err != nil {
 		return Argon2Options{}, nil, nil, err
